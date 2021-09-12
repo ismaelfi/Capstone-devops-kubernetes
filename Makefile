@@ -3,8 +3,15 @@ install:
 		pip install -r requirements.txt
 
 lint:
-	docker run --rm -i hadolint/hadolint < Dockerfile
-	pylint --disable=R,C,W1203,W0702 app.py
+
+	# See local hadolint install instructions:   https://github.com/hadolint/hadolint
+	wget -O ./hadolint https://github.com/hadolint/hadolint/releases/download/v2.7.0/hadolint-Darwin-x86_64 &&\
+	chmod +x ./hadolint
+	# This is linter for Dockerfiles
+	hadolint Dockerfile
+	# This is a linter for Python source code linter: https://www.pylint.org/
+	# This should be run from inside a virtualenv
+	pylint --disable=R,C,W1203 app.py
 
 test:
 	python -m pytest -vv --cov=app test_app.py
