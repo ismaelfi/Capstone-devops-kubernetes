@@ -1,7 +1,4 @@
-# Python CircleCI 2.0 configuration file
-# Check https://circleci.com/docs/2.0/language-python/ for more details
-
-version: 2
+version: 2.1
 executors:
   docker-publisher:
     environment:
@@ -72,7 +69,7 @@ jobs:
             docker push $IMAGE_NAME:latest
             docker push $IMAGE_NAME:$IMAGE_TAG
 workflows:
-  version: 2
+  version: 2.1
   default:
     jobs:
       - build-lint
