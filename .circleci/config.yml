@@ -2,7 +2,7 @@ version: 2.1
 executors:
   docker-publisher:
     environment:
-      IMAGE_NAME: $DOCKERHUB_USERNAME/make-change-app
+      IMAGE_NAME: ismafin/make-change-app
     docker:
       - image: circleci/buildpack-deps:stretch
 jobs:
@@ -41,16 +41,21 @@ jobs:
             . venv/bin/activate
             make lint
   build-docker:
-    environment:
-      IMAGE_NAME: $DOCKERHUB_USERNAME/make-change-app
-    docker:
-      - image: circleci/buildpack-deps:stretch
+    executor: docker-publisher
     steps:
       - checkout
       - setup_remote_docker
       - run:
           name: Build Docker image
-          command: docker build -t $IMAGE_NAME:latest .
+          command: |
+            docker build -t $IMAGE_NAME:latest .
+      - run:
+          name: Archive Docker image
+          command: docker save -o image.tar $IMAGE_NAME
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./image.tar
   push-docker-hub:
     executor: docker-publisher
     steps:
