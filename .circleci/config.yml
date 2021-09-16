@@ -72,6 +72,7 @@ jobs:
             docker push $IMAGE_NAME:latest
             docker push $IMAGE_NAME:$IMAGE_TAG
 workflows:
+  version: 2
   default:
     jobs:
       - build-lint
