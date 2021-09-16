@@ -55,7 +55,7 @@ jobs:
           name: Build Docker image
           command: docker build -t $IMAGE_NAME:latest .
   push-docker-hub:
-     executor: docker-publisher
+    executor: docker-publisher
     steps:
       - attach_workspace:
           at: /tmp/workspace
