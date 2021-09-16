@@ -2,8 +2,14 @@
 # Check https://circleci.com/docs/2.0/language-python/ for more details
 
 version: 2
+executors:
+  docker-publisher:
+    environment:
+      IMAGE_NAME: $DOCKERHUB_USERNAME/make-change-app
+    docker:
+      - image: circleci/buildpack-deps:stretch
 jobs:
-  build:
+  build-lint:
     docker:
     # Use the same Docker base as the project
     - image: python:3.7.3-stretch
@@ -37,3 +43,47 @@ jobs:
           command: |
             . venv/bin/activate
             make lint
+  build-docker:
+    environment:
+      IMAGE_NAME: $DOCKERHUB_USERNAME/make-change-app
+    docker:
+      - image: circleci/buildpack-deps:stretch
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build Docker image
+          command: docker build -t $IMAGE_NAME:latest .
+  push-docker-hub:
+     executor: docker-publisher
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - setup_remote_docker
+      - run:
+          name: Load archived Docker image
+          command: docker load -i /tmp/workspace/image.tar
+      - run:
+          name: Publish Docker Image to Docker Hub
+          command: |
+            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            IMAGE_TAG="0.0.${CIRCLE_BUILD_NUM}"
+            docker tag $IMAGE_NAME:latest $IMAGE_NAME:$IMAGE_TAG
+            docker push $IMAGE_NAME:latest
+            docker push $IMAGE_NAME:$IMAGE_TAG
+workflows:
+  version: 2
+  build-master:
+    jobs:
+      - build-lint
+      - build-docker:
+          requires:
+            - build-lint
+          filters:
+            branches:
+              only: master
+      - push-docker-hub:
+          requires: [build-lint, build-docker]
+          filters:
+            branches:
+              only: master

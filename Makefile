@@ -1,3 +1,8 @@
+setup:
+	# Create a python virtualenv & activate it
+	python3 -m venv ~/.capstone
+	# source ~/.capstone/bin/activate
+
 install:
 	pip install --upgrade pip &&\
 		pip install -r requirements.txt
