@@ -3,6 +3,7 @@ executors:
   docker-publisher:
     environment:
       IMAGE_NAME: ismafin/make-change-app
+      EKS_CLUSTER_NAME: udacity-cloud-devops-capstone
     docker:
       - image: circleci/buildpack-deps:stretch
 jobs:
@@ -56,6 +57,25 @@ jobs:
           root: .
           paths:
             - ./image.tar
+  test-docker-container:
+    executor: docker-publisher
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - setup_remote_docker
+      - run:
+          name: Load archived Docker image
+          command: docker load -i /tmp/workspace/image.tar
+      - run:
+          name: Run and test docker container
+          command: |
+            docker image ls
+            docker container ls
+            docker run -d -p 8000:8080 $IMAGE_NAME
+            docker container ls
+            docker stop $(docker ps -a -q)
+            docker rm -f $(docker ps -a -q)
+            docker container ls
   push-docker-hub:
     executor: docker-publisher
     steps:
@@ -73,13 +93,41 @@ jobs:
             docker tag $IMAGE_NAME:latest $IMAGE_NAME:$IMAGE_TAG
             docker push $IMAGE_NAME:latest
             docker push $IMAGE_NAME:$IMAGE_TAG
+  create-eks-cluster:
+    docker:
+      - image: python:3.7.3-stretch
+    steps:
+      # # Download and cache dependencies
+      # - attach_workspace:
+      #     at: /tmp/workspace
+      - checkout
+      - run:
+          name: install CLI for Amazon EKS
+          command: |
+              curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+              mv /tmp/eksctl /usr/local/bin
+      - run:
+          name: install Kubectl
+          command: |
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - run:
+          name: create-eks-cluster
+          command: |
+              eksctl create cluster --config-file=cluster-conf.yml
+
+
 workflows:
   version: 2.1
   default:
     jobs:
-      - build-lint
-      - build-docker:
-          requires:
-            - build-lint
-      - push-docker-hub:
-          requires: [build-lint, build-docker]
+      - create-eks-cluster
+      # - build-lint
+      # - build-docker
+      #     # requires:
+      #     #   - build-lint
+      # - test-docker-container:
+      #     requires:
+      #       - build-docker
+      # - push-docker-hub:
+      #     requires: [test-docker-container]
