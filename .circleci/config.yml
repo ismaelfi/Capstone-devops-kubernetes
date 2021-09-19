@@ -92,7 +92,7 @@ jobs:
             docker tag $IMAGE_NAME:latest $IMAGE_NAME:$IMAGE_TAG
             docker push $IMAGE_NAME:latest
             docker push $IMAGE_NAME:$IMAGE_TAG
-  create-configure-eks-cluster:
+  create-configure-deploy-eks-cluster:
     docker:
       - image: python:3.7.3-stretch
     steps:
@@ -150,11 +150,15 @@ jobs:
                 echo "Listing Nodes"
                 kubectl get nodes
                 kubectl get service/make-change-app-service
+                echo "Get load balancer hostname"
+                export EKS_URL= $(kubectl get svc make-change-app-service -o jsonpath="{.status.loadBalancer.ingress[*].hostname}")
+                echo "Test deployments"
+                curl ${EKS_URL}:8080
 workflows:
   version: 2.1
   default:
     jobs:
-      - create-configure-eks-cluster
+      - create-configure-deploy-eks-cluster
       # - build-lint
       # - build-docker
       #     # requires:

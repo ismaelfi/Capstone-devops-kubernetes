@@ -29,6 +29,6 @@ spec:
       containers:
       - name: flask-change
         image: ismafin/make-change-app:latest
-        imagePullPolicy: Never
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
