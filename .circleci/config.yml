@@ -151,7 +151,7 @@ jobs:
                 kubectl get nodes
                 kubectl get service/make-change-app-service
                 echo "Get load balancer hostname"
-                export EKS_URL= $(kubectl get svc make-change-app-service -o jsonpath="{.status.loadBalancer.ingress[*].hostname}")
+                export EKS_URL=$(kubectl get svc make-change-app-service -o jsonpath="{.status.loadBalancer.ingress[*].hostname}")
                 echo "Test deployments"
                 curl ${EKS_URL}:8080
 workflows:
