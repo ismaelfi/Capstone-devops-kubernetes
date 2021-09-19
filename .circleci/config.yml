@@ -1,11 +1,8 @@
-# Python CircleCI 2.0 configuration file
-# Check https://circleci.com/docs/2.0/language-python/ for more details
-
 version: 2.1
 executors:
   docker-publisher:
     environment:
-      IMAGE_NAME: $DOCKERHUB_USERNAME/make-change-app
+      IMAGE_NAME: ismafin/make-change-app
     docker:
       - image: circleci/buildpack-deps:stretch
 jobs:
@@ -44,16 +41,40 @@ jobs:
             . venv/bin/activate
             make lint
   build-docker:
-    environment:
-      IMAGE_NAME: $DOCKERHUB_USERNAME/make-change-app
-    docker:
-      - image: circleci/buildpack-deps:stretch
+    executor: docker-publisher
     steps:
       - checkout
       - setup_remote_docker
       - run:
           name: Build Docker image
-          command: docker build -t $IMAGE_NAME:latest .
+          command: |
+            docker build -t $IMAGE_NAME:latest .
+      - run:
+          name: Archive Docker image
+          command: docker save -o image.tar $IMAGE_NAME
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./image.tar
+  test-docker-container:
+    executor: docker-publisher
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - setup_remote_docker
+      - run:
+          name: Load archived Docker image
+          command: docker load -i /tmp/workspace/image.tar
+      - run:
+          name: Run and test docker container
+          command: |
+            docker image ls
+            docker container ls
+            docker run -d -p 8000:8080 $IMAGE_NAME
+            docker container ls
+            docker stop $(docker ps -a -q)
+            docker rm -f $(docker ps -a -q)
+            docker container ls
   push-docker-hub:
     executor: docker-publisher
     steps:
@@ -71,19 +92,84 @@ jobs:
             docker tag $IMAGE_NAME:latest $IMAGE_NAME:$IMAGE_TAG
             docker push $IMAGE_NAME:latest
             docker push $IMAGE_NAME:$IMAGE_TAG
+  create-configure-deploy-eks-cluster:
+    docker:
+      - image: python:3.7.3-stretch
+    steps:
+      # # Download and cache dependencies
+      # - attach_workspace:
+      #     at: /tmp/workspace
+      - checkout
+      - run:
+          name: install Amazon CLI
+          command: |
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+      - run:
+          name: install CLI for Amazon EKS
+          command: |
+              curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+              mv /tmp/eksctl /usr/local/bin
+      - run:
+          name: install Kubectl
+          command: |
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - run:
+          name: create-eks-cluster
+          command: |
+              if [ -z "$(aws cloudformation list-exports --query "Exports[?Name=='eksctl-cluster-change-app-cluster::ARN'].Value" --output text)" ]; then
+              echo "Creating cluster ..."
+              eksctl create cluster --config-file=cluster-conf.yml
+              else
+              echo "Cluster already exists"
+              fi
+      - run:
+          name: Configure Kubernetes to use Cluster
+          command: |
+                export EKS_ARN=$(aws cloudformation list-exports --query "Exports[?Name=='eksctl-cluster-change-app-cluster::ARN'].Value" --output text)
+                aws eks update-kubeconfig --name cluster-change-app
+                kubectl config use-context ${EKS_ARN}
+      - run:
+          name: Apply deployments config to cluster
+          command: |
+                kubectl config current-context
+                kubectl apply -f deployement-k8s.yml
+                kubectl rollout restart deployments/make-change-app
+                echo 'wait for image pullin'
+                sleep 2m
+                echo "Listing deployments"
+                kubectl get deployments -o wide
+                echo
+                echo "Listing services"
+                kubectl get services -o wide
+                echo
+                echo "Listing pods"
+                kubectl get pods -o wide
+                echo "Listing Nodes"
+                kubectl get nodes
+                kubectl get service/make-change-app-service
+      - run:
+            name: Test & verify deployments
+            command: |
+                  echo "Get load balancer hostname"
+                  export EKS_URL=$(kubectl get svc make-change-app-service -o jsonpath="{.status.loadBalancer.ingress[*].hostname}")
+                  echo "LoadBalancerHostname = $EKS_URL"
+                  echo "Testing deployments ..."
+                  curl ${EKS_URL}:8080
 workflows:
-  version: 2
-  build-master:
+  version: 2.1
+  default:
     jobs:
       - build-lint
       - build-docker:
           requires:
             - build-lint
-          filters:
-            branches:
-              only: master
+      - test-docker-container:
+          requires:
+            - build-docker
       - push-docker-hub:
-          requires: [build-lint, build-docker]
-          filters:
-            branches:
-              only: master
+          requires: [test-docker-container]
+      - create-configure-deploy-eks-cluster:
+          requires: [push-docker-hub]
