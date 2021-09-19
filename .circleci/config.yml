@@ -150,21 +150,26 @@ jobs:
                 echo "Listing Nodes"
                 kubectl get nodes
                 kubectl get service/make-change-app-service
-                echo "Get load balancer hostname"
-                export EKS_URL=$(kubectl get svc make-change-app-service -o jsonpath="{.status.loadBalancer.ingress[*].hostname}")
-                echo "Test deployments"
-                curl ${EKS_URL}:8080
+      - run:
+            name: Test & verify deployments
+            command: |
+                  echo "Get load balancer hostname"
+                  export EKS_URL=$(kubectl get svc make-change-app-service -o jsonpath="{.status.loadBalancer.ingress[*].hostname}")
+                  echo "LoadBalancerHostname = $EKS_URL"
+                  echo "Testing deployments ..."
+                  curl ${EKS_URL}:8080
 workflows:
   version: 2.1
   default:
     jobs:
-      - create-configure-deploy-eks-cluster
-      # - build-lint
-      # - build-docker
-      #     # requires:
-      #     #   - build-lint
-      # - test-docker-container:
-      #     requires:
-      #       - build-docker
-      # - push-docker-hub:
-      #     requires: [test-docker-container]
+      - build-lint
+      - build-docker:
+          requires:
+            - build-lint
+      - test-docker-container:
+          requires:
+            - build-docker
+      - push-docker-hub:
+          requires: [test-docker-container]
+      - create-configure-deploy-eks-cluster:
+          requires: [push-docker-hub]
