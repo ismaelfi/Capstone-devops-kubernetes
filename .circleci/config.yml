@@ -116,7 +116,15 @@ jobs:
           command: |
               if [ -z "$(aws cloudformation list-exports --query "Exports[?Name=='eksctl-cluster-change-app-cluster::ARN'].Value" --output text)" ]; then
               echo "Creating cluster ..."
-              eksctl create cluster --config-file=cluster-conf.yml
+              eksctl create cluster --name cluster-change-app \
+                                                  --version 1.17 \
+                                                  --nodegroup-name g-workers \
+                                                  --node-type t2.medium \
+                                                  --nodes 2 \
+                                                  --nodes-min 1 \
+                                                  --nodes-max 2 \
+                                                  --node-ami-family=AmazonLinux2 \
+                                                  --region ${AWS_DEFAULT_REGION}
               else
               echo "Cluster already exists"
               fi
@@ -162,14 +170,14 @@ workflows:
   version: 2.1
   default:
     jobs:
-      - build-lint
-      - build-docker:
-          requires:
-            - build-lint
-      - test-docker-container:
-          requires:
-            - build-docker
-      - push-docker-hub:
-          requires: [test-docker-container]
-      - create-configure-deploy-eks-cluster:
-          requires: [push-docker-hub]
+      # - build-lint
+      # - build-docker:
+      #     requires:
+      #       - build-lint
+      # - test-docker-container:
+      #     requires:
+      #       - build-docker
+      # - push-docker-hub:
+      #     requires: [test-docker-container]
+      - create-configure-deploy-eks-cluster
+          # requires: [push-docker-hub]
