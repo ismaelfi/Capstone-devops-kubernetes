@@ -170,14 +170,14 @@ workflows:
   version: 2.1
   default:
     jobs:
-      # - build-lint
-      # - build-docker:
-      #     requires:
-      #       - build-lint
-      # - test-docker-container:
-      #     requires:
-      #       - build-docker
-      # - push-docker-hub:
-      #     requires: [test-docker-container]
-      - create-configure-deploy-eks-cluster
-          # requires: [push-docker-hub]
+      - build-lint
+      - build-docker:
+          requires:
+            - build-lint
+      - test-docker-container:
+          requires:
+            - build-docker
+      - push-docker-hub:
+          requires: [test-docker-container]
+      - create-configure-deploy-eks-cluster:
+          requires: [push-docker-hub]
