@@ -27,9 +27,7 @@ jobs:
               python3 -m venv venv
               . venv/bin/activate
               make install
-              # Install hadolint
-              wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64 &&\
-              chmod +x /bin/hadolint
+
       - save_cache:
           paths:
               - ./venv
@@ -96,9 +94,6 @@ jobs:
     docker:
       - image: python:3.7.3-stretch
     steps:
-      # # Download and cache dependencies
-      # - attach_workspace:
-      #     at: /tmp/workspace
       - checkout
       - run:
           name: install Amazon CLI
@@ -136,7 +131,7 @@ jobs:
           command: |
                 kubectl config current-context
                 kubectl apply -f deployement-k8s.yml
-                kubectl rollout restart deployments/make-change-app
+                kubectl set image deployments/make-change-app make-change-app=$IMAGE_NAME:latest
                 echo 'wait for image pullin'
                 sleep 2m
                 echo "Listing deployments"
@@ -158,6 +153,11 @@ jobs:
                   echo "LoadBalancerHostname = $EKS_URL"
                   echo "Testing deployments ..."
                   curl ${EKS_URL}:8080
+      - run:
+            name: check rollout
+            command: |
+                  echo "Checking rollout ..."
+                  kubectl rollout status deployments/make-change-app
 workflows:
   version: 2.1
   default:
