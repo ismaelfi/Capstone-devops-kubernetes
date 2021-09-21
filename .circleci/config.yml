@@ -132,7 +132,6 @@ jobs:
                 kubectl config current-context
                 kubectl apply -f deployement-k8s.yml
                 kubectl rollout restart deployments/make-change-app
-                kubectl set image deployments/make-change-app make-change-app=$IMAGE_NAME:latest
                 echo 'wait for image pullin'
                 sleep 2m
                 echo "Listing deployments"
